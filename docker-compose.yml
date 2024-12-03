@@ -1,0 +1,68 @@
+version: '3.4'
+
+services:
+  api:
+    image: rafaxzx/api:latest
+    build:
+      context: .
+      dockerfile: API/Dockerfile
+    environment:
+       - ASPNETCORE_ENVIRONMENT=Development
+       - ASPNETCORE_HTTP_PORTS=8080
+    ports: 
+       - "58745:8080"
+    depends_on:
+       - sqldata
+       - prometheus
+       - rabbitmq
+       - grafana
+       - worker
+
+  sqldata:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    
+    environment:
+        - SA_PASSWORD=Fiap@2024
+        - ACCEPT_EULA=Y
+    volumes:
+        - c:\dados\volumes\mssql:/var/opt/mssql/data
+        - .\Infrastructure\Scripts_sql\:/scripts/
+    ports:
+        - "1450:1433"
+    command: ["/scripts/Script_inicio.sh"]
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+  
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: "rabbitQueue"
+    hostname: "rabbitmq-service"
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  worker:
+    image: rafaxzx/workermessageconsumer:latest
+    build:
+      context: .
+      dockerfile: WorkerMessageConsumer/Dockerfile
+    depends_on:
+      - rabbitmq
+      - sqldata
